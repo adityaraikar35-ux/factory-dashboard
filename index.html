@@ -1,0 +1,2581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factory Production Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+/* =====================================================================
+   DESIGN TOKENS
+   Palette grounded in the factory floor this runs on: kraft/corrugated
+   tan for packaging, deep steel-teal for machinery, a burnt-amber signal
+   colour reserved only for rejection/warning numbers (never decorative).
+   ===================================================================== */
+:root {
+  --ink: #1b2024;
+  --ink-muted: #667079;
+  --ink-faint: #97a1a8;
+  --canvas: #f3f4f0;
+  --surface: #ffffff;
+  --line: #e1e4de;
+  --line-strong: #cdd2cb;
+
+  --teal-deep: #123a42;
+  --teal-deep-hover: #0d2a30;
+  --teal-tint: #e8eeee;
+
+  --kraft: #b9824c;
+  --kraft-soft: #f3e6d3;
+
+  --amber: #c2530e;
+  --amber-soft: #fbeee5;
+
+  --green: #1f7a52;
+  --green-soft: #e6f2ec;
+
+  --shift-a-fg: #46647f; --shift-a-bg: #e9eff4;
+  --shift-b-fg: #4c7a55; --shift-b-bg: #e9f2ea;
+  --shift-c-fg: #7c5a83; --shift-c-bg: #f1e9f2;
+  --shift-d-fg: #9c7a2e; --shift-d-bg: #f5efdc;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(18, 58, 66, 0.06), 0 1px 1px rgba(18, 58, 66, 0.04);
+  --shadow-md: 0 8px 24px rgba(18, 58, 66, 0.10);
+  --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --sidebar-width: 248px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+p { margin: 0 0 8px; }
+a { color: inherit; }
+button { font-family: var(--font-body); }
+.hidden { display: none !important; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.num-amber { color: var(--amber); font-weight: 600; }
+
+:focus-visible {
+  outline: 2px solid var(--kraft);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* =====================================================================
+   BOOT SCREEN
+   ===================================================================== */
+.boot-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 32px;
+  color: var(--ink-muted);
+}
+.boot-mark {
+  width: 56px; height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--teal-deep);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+}
+.boot-hint { max-width: 420px; font-size: 13px; }
+
+/* =====================================================================
+   LOGIN VIEW
+   ===================================================================== */
+.login-view {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(185,130,76,0.10), transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(18,58,66,0.10), transparent 45%),
+    var(--canvas);
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 36px 32px 28px;
+  text-align: center;
+}
+.login-logo-img { max-width: 96px; max-height: 96px; object-fit: contain; margin-bottom: 12px; }
+.login-logo-fallback {
+  width: 64px; height: 64px; margin: 0 auto 14px;
+  border-radius: var(--radius-md);
+  background: var(--teal-deep); color: #fff;
+  font-family: var(--font-display); font-weight: 700; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.login-company-name { font-size: 20px; margin-bottom: 2px; }
+.login-subtitle { color: var(--ink-muted); font-size: 13px; margin-bottom: 24px; }
+.login-form { text-align: left; display: flex; flex-direction: column; gap: 4px; }
+.login-hint { margin-top: 18px; font-size: 11.5px; color: var(--ink-faint); line-height: 1.5; }
+.btn-block { width: 100%; margin-top: 8px; }
+
+/* =====================================================================
+   APP SHELL / LAYOUT
+   ===================================================================== */
+.app-shell { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--teal-deep);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+.sidebar-logo-img { width: 34px; height: 34px; object-fit: contain; border-radius: 6px; background: #fff; padding: 3px; }
+.sidebar-logo-fallback {
+  width: 34px; height: 34px; border-radius: 6px;
+  background: var(--kraft); color: #fff;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sidebar-brand-text { min-width: 0; }
+.sidebar-company-name {
+  font-family: var(--font-display); font-weight: 600; font-size: 13.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-company-sub { font-size: 11px; color: rgba(255,255,255,0.55); }
+
+.sidebar-nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: rgba(255,255,255,0.72);
+  font-size: 13.5px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-item .nav-icon { width: 17px; height: 17px; flex-shrink: 0; display: flex; }
+.nav-item .nav-icon svg { width: 100%; height: 100%; }
+.nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.nav-item.active {
+  background: rgba(255,255,255,0.09);
+  color: #fff;
+  border-left-color: var(--kraft);
+}
+.sidebar-footer { padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.12); }
+.sidebar-realtime { display: flex; align-items: center; gap: 7px; font-size: 12px; color: rgba(255,255,255,0.6); }
+.realtime-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(31,122,82,0.25); }
+.realtime-dot-off { background: var(--ink-faint); box-shadow: none; }
+
+.main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 26px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+}
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+.page-title { font-size: 19px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.topbar-date { font-size: 13px; color: var(--ink-muted); margin-right: 6px; }
+
+.icon-btn {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-muted); cursor: pointer; position: relative;
+}
+.icon-btn:hover { background: var(--canvas); color: var(--ink); }
+.icon-btn .nav-icon { width: 18px; height: 18px; }
+.icon-btn .nav-icon svg { width: 100%; height: 100%; }
+.icon-badge {
+  position: absolute; top: 4px; right: 4px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px; background: var(--amber); color: #fff;
+  font-size: 9.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.user-btn { width: auto; padding: 5px 10px 5px 5px; gap: 8px; }
+.user-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--teal-deep); color: #fff;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.user-email-label { font-size: 12.5px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.topbar-popover-wrap { position: relative; }
+.popover {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 240px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md); padding: 14px; z-index: 30;
+}
+.popover-title { font-weight: 600; font-size: 13.5px; margin-bottom: 2px; }
+.popover-sub { font-size: 12px; color: var(--ink-muted); margin-bottom: 10px; text-transform: capitalize; }
+.popover-body { font-size: 13px; color: var(--ink-muted); }
+.popover-action {
+  width: 100%; text-align: left; padding: 8px 10px; margin-top: 4px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer; font-size: 13px; color: var(--amber);
+}
+.popover-action:hover { background: var(--amber-soft); }
+
+.content { flex: 1; padding: 24px 26px 60px; max-width: 1320px; width: 100%; margin: 0 auto; }
+
+.view { display: none; }
+.view.view-active { display: block; }
+
+/* =====================================================================
+   TOOLBARS / SEGMENTED CONTROL
+   ===================================================================== */
+.view-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
+.segmented { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 3px; }
+.segmented-btn {
+  border: none; background: transparent; padding: 7px 14px;
+  font-size: 13px; font-weight: 500; color: var(--ink-muted);
+  border-radius: 5px; cursor: pointer;
+}
+.segmented-btn.active { background: var(--teal-deep); color: #fff; }
+
+/* =====================================================================
+   BUTTONS
+   ===================================================================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 18px; border-radius: var(--radius-sm);
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  border: 1px solid transparent; transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn .nav-icon { width: 15px; height: 15px; }
+.btn .nav-icon svg { width: 100%; height: 100%; }
+.btn-primary { background: var(--teal-deep); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--teal-deep-hover); }
+.btn-secondary { background: var(--kraft-soft); color: var(--kraft); border-color: var(--kraft-soft); }
+.btn-secondary:hover:not(:disabled) { background: var(--kraft); color: #fff; }
+.btn-ghost { background: transparent; color: var(--ink-muted); border-color: var(--line); }
+.btn-ghost:hover:not(:disabled) { background: var(--canvas); color: var(--ink); }
+.btn-danger { background: var(--amber); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #a4470c; }
+.btn-danger-ghost { background: transparent; color: var(--amber); border-color: var(--amber-soft); }
+.btn-danger-ghost:hover:not(:disabled) { background: var(--amber-soft); }
+.btn-sm { padding: 6px 12px; font-size: 12.5px; }
+.btn-xs { padding: 4px 9px; font-size: 11.5px; }
+
+/* =====================================================================
+   FORMS
+   ===================================================================== */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field-label { font-size: 12.5px; font-weight: 600; color: var(--ink-muted); }
+.field-hint { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+.text-input {
+  padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  font-size: 13.5px; font-family: var(--font-body); color: var(--ink); background: var(--surface);
+  width: 100%;
+}
+.text-input:focus { outline: none; border-color: var(--teal-deep); box-shadow: 0 0 0 3px var(--teal-tint); }
+.form-error {
+  background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(194,83,14,0.25);
+  padding: 9px 12px; border-radius: var(--radius-sm); font-size: 12.5px; margin: 6px 0 10px;
+}
+.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 18px; }
+.field-span2 { grid-column: 1 / -1; }
+.form-actions { display: flex; gap: 10px; margin-top: 6px; }
+.form-panel { max-width: 720px; }
+.filter-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 16px; align-items: end; }
+.filter-actions { grid-column: span 2; }
+.filter-btn-row { display: flex; gap: 8px; }
+
+/* =====================================================================
+   PANELS / CARDS
+   ===================================================================== */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+}
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; gap: 10px; flex-wrap: wrap; }
+.panel-head h3 { font-size: 15.5px; }
+.panel-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.panel-head-row h3 { font-size: 14.5px; }
+.panel-sub { font-size: 12px; color: var(--ink-faint); }
+.panel-link { font-size: 12.5px; font-weight: 600; color: var(--kraft); text-decoration: none; }
+.panel-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+/* =====================================================================
+   KPI "GAUGE PLATE" CARDS — the one signature element on this page.
+   ===================================================================== */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.kpi-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--kraft);
+  border-radius: var(--radius-md);
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-sm);
+}
+.kpi-card::before, .kpi-card::after {
+  content: ''; position: absolute; top: 7px; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--kraft-soft);
+}
+.kpi-card::before { left: 8px; }
+.kpi-card::after { right: 8px; }
+.kpi-card.kpi-tone-amber { border-top-color: var(--amber); }
+.kpi-card.kpi-tone-amber::before, .kpi-card.kpi-tone-amber::after { background: var(--amber-soft); }
+.kpi-card.kpi-tone-good { border-top-color: var(--green); }
+.kpi-card.kpi-tone-good::before, .kpi-card.kpi-tone-good::after { background: var(--green-soft); }
+.kpi-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+.kpi-value { font-family: var(--font-display); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpi-sub { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; }
+
+/* =====================================================================
+   CHARTS
+   ===================================================================== */
+.chart-wrap { height: 260px; position: relative; }
+
+/* =====================================================================
+   DATA TABLES
+   ===================================================================== */
+.table-scroll { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-faint); padding: 9px 10px; border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+}
+.data-table td { padding: 10px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.data-table td.cell-remarks { white-space: normal; max-width: 220px; color: var(--ink-muted); }
+.data-table tbody tr:hover { background: var(--canvas); }
+.row-clickable { cursor: pointer; }
+.empty-cell { text-align: center; color: var(--ink-faint); padding: 22px !important; }
+
+.status-badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.status-active { background: var(--green-soft); color: var(--green); }
+.status-inactive { background: var(--canvas); color: var(--ink-faint); }
+
+.shift-badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 700; }
+.shift-A { background: var(--shift-a-bg); color: var(--shift-a-fg); }
+.shift-B { background: var(--shift-b-bg); color: var(--shift-b-fg); }
+.shift-C { background: var(--shift-c-bg); color: var(--shift-c-fg); }
+.shift-D { background: var(--shift-d-bg); color: var(--shift-d-fg); }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--ink-muted); }
+.empty-state p { margin-bottom: 14px; }
+.empty-state-inline { padding: 18px; text-align: center; color: var(--ink-faint); font-size: 13px; }
+.loading-row { text-align: center; padding: 18px; color: var(--ink-muted); font-size: 13px; }
+
+/* =====================================================================
+   MACHINES VIEW
+   ===================================================================== */
+.machine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.machine-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 20px 12px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); cursor: pointer; text-align: center;
+}
+.machine-card:hover { border-color: var(--kraft); box-shadow: var(--shadow-sm); }
+.machine-card-icon { width: 26px; height: 26px; color: var(--teal-deep); }
+.machine-card-icon svg { width: 100%; height: 100%; }
+.machine-card-name { font-weight: 600; font-size: 13.5px; }
+.machine-detail-name { font-size: 20px; margin-bottom: 16px; }
+
+/* =====================================================================
+   SETTINGS
+   ===================================================================== */
+.settings-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+.settings-tab {
+  border: none; background: transparent; padding: 10px 16px; font-size: 13.5px; font-weight: 600;
+  color: var(--ink-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.settings-tab.active { color: var(--teal-deep); border-bottom-color: var(--kraft); }
+.branding-grid { display: grid; grid-template-columns: 200px 1fr; gap: 28px; }
+.branding-logo-col { display: flex; flex-direction: column; gap: 10px; }
+.logo-preview-box {
+  width: 100%; aspect-ratio: 1; border: 1px dashed var(--line-strong); border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center; background: var(--canvas); overflow: hidden;
+}
+.logo-preview-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.logo-preview-fallback { font-size: 12px; color: var(--ink-faint); }
+.master-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+.master-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.master-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.master-row-name { flex: 1; font-size: 13px; font-weight: 500; }
+
+/* =====================================================================
+   REPORT SHEET
+   ===================================================================== */
+.report-sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 26px 28px; box-shadow: var(--shadow-sm); }
+.report-header { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 2px solid var(--teal-deep); margin-bottom: 16px; }
+.report-logo-img { width: 48px; height: 48px; object-fit: contain; }
+.report-logo-fallback {
+  width: 48px; height: 48px; border-radius: 8px; background: var(--teal-deep); color: #fff;
+  font-family: var(--font-display); font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.report-company-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+.report-title { font-size: 12.5px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.report-meta { font-size: 13px; color: var(--ink-muted); margin-bottom: 18px; }
+
+/* =====================================================================
+   MODALS
+   ===================================================================== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(18,32,36,0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+}
+.modal {
+  background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: 420px;
+  box-shadow: var(--shadow-md); max-height: 90vh; overflow-y: auto;
+}
+.modal-wide { max-width: 640px; }
+.modal-narrow { max-width: 360px; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+.modal-head h3 { font-size: 15.5px; }
+.modal-close { border: none; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; color: var(--ink-faint); padding: 4px; }
+.modal-close:hover { color: var(--ink); }
+.modal-body { padding: 20px 22px; }
+.modal-body h3 { font-size: 16px; margin-bottom: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--line); }
+.modal-actions-split { justify-content: space-between; }
+.modal-actions-right { display: flex; gap: 10px; }
+
+/* =====================================================================
+   TOASTS
+   ===================================================================== */
+.toast-container { position: fixed; bottom: 22px; right: 22px; display: flex; flex-direction: column; gap: 10px; z-index: 200; max-width: 340px; }
+.toast {
+  padding: 13px 16px; border-radius: var(--radius-sm); background: var(--ink); color: #fff;
+  font-size: 13px; box-shadow: var(--shadow-md); opacity: 0; transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.toast-in { opacity: 1; transform: translateY(0); }
+.toast-success { background: var(--green); }
+.toast-error { background: var(--amber); }
+.toast-info { background: var(--teal-deep); }
+
+/* =====================================================================
+   LOADING OVERLAY
+   ===================================================================== */
+.loading-overlay { position: fixed; inset: 0; background: rgba(243,244,240,0.85); display: flex; align-items: center; justify-content: center; z-index: 150; }
+.loading-box { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--ink-muted); font-size: 13.5px; }
+.spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line-strong); border-top-color: var(--teal-deep); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* =====================================================================
+   PRINT — reports view only
+   ===================================================================== */
+@media print {
+  .sidebar, .topbar, .no-print, .settings-tabs, #toast-container, .view-toolbar { display: none !important; }
+  .main-col, .content { padding: 0; margin: 0; max-width: none; }
+  body { background: #fff; }
+  .report-sheet { box-shadow: none; border: none; padding: 0; }
+}
+
+/* =====================================================================
+   RESPONSIVE
+   ===================================================================== */
+.mobile-only { display: none; }
+@media (max-width: 980px) {
+  .panel-grid { grid-template-columns: 1fr; }
+  .kpi-grid, .kpi-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .form-grid { grid-template-columns: 1fr; }
+  .filter-bar { grid-template-columns: repeat(2, 1fr); }
+  .filter-actions { grid-column: span 2; }
+  .master-grid { grid-template-columns: 1fr; }
+  .branding-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .mobile-only { display: flex; }
+  .sidebar {
+    position: fixed; left: -100%; top: 0; height: 100vh; z-index: 90; transition: left 0.2s ease;
+    box-shadow: var(--shadow-md);
+  }
+  .sidebar.sidebar-mobile-open { left: 0; }
+  .content { padding: 16px 14px 50px; }
+  .topbar { padding: 12px 16px; }
+  .kpi-grid, .kpi-grid-3 { grid-template-columns: 1fr 1fr; }
+  .user-email-label { display: none; }
+  .topbar-date { display: none; }
+  .filter-bar { grid-template-columns: 1fr; }
+  .filter-actions { grid-column: span 1; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ================= LOADING SCREEN (shown until we know session state) ================= -->
+<div id="boot-screen" class="boot-screen">
+  <div class="boot-mark">P8</div>
+  <p>Loading Factory Production Management System…</p>
+</div>
+
+<!-- ================= LOGIN VIEW ================= -->
+<div id="login-view" class="login-view hidden">
+  <div class="login-card">
+    <img id="login-logo-img" class="login-logo-img hidden" alt="Company logo">
+    <div id="login-logo-fallback" class="login-logo-fallback">P8</div>
+    <h1 id="login-company-name" class="login-company-name">Your Company Name</h1>
+    <p class="login-subtitle">Factory Production Management System</p>
+
+    <form id="login-form" class="login-form" autocomplete="on">
+      <label class="field-label" for="login-email">Email</label>
+      <input id="login-email" class="text-input" type="email" required autocomplete="username" placeholder="you@company.com">
+
+      <label class="field-label" for="login-password">Password</label>
+      <input id="login-password" class="text-input" type="password" required autocomplete="current-password" placeholder="••••••••">
+
+      <div id="login-error" class="form-error hidden"></div>
+
+      <button type="submit" id="login-submit-btn" class="btn btn-primary btn-block">
+        <span class="btn-label">Sign in</span>
+      </button>
+    </form>
+    <p class="login-hint">Accounts are created by your administrator in the Supabase dashboard. See SETUP_GUIDE.md.</p>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app-shell" class="app-shell hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img id="sidebar-logo-img" class="sidebar-logo-img hidden" alt="Company logo">
+      <div id="sidebar-logo-fallback" class="sidebar-logo-fallback">P8</div>
+      <div class="sidebar-brand-text">
+        <div id="sidebar-company-name" class="sidebar-company-name">Your Company Name</div>
+        <div class="sidebar-company-sub">Production System</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#dashboard" class="nav-item" data-view="dashboard">
+        <span class="nav-icon" data-icon="grid"></span> Dashboard
+      </a>
+      <a href="#entry" class="nav-item" data-view="entry">
+        <span class="nav-icon" data-icon="plus-square"></span> Production Entry
+      </a>
+      <a href="#history" class="nav-item" data-view="history">
+        <span class="nav-icon" data-icon="search"></span> History &amp; Search
+      </a>
+      <a href="#machines" class="nav-item" data-view="machines">
+        <span class="nav-icon" data-icon="cpu"></span> Machines
+      </a>
+      <a href="#reports" class="nav-item" data-view="reports">
+        <span class="nav-icon" data-icon="file-text"></span> Reports
+      </a>
+      <a href="#settings" class="nav-item" data-view="settings">
+        <span class="nav-icon" data-icon="settings"></span> Settings
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-realtime">
+        <span id="realtime-dot" class="realtime-dot"></span>
+        <span id="realtime-label">Live</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN COLUMN -->
+  <div class="main-col">
+
+    <!-- TOP HEADER -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button id="mobile-nav-toggle" class="icon-btn mobile-only" aria-label="Open menu" type="button">
+          <span class="nav-icon" data-icon="menu"></span>
+        </button>
+        <h2 id="page-title" class="page-title">Dashboard</h2>
+      </div>
+      <div class="topbar-right">
+        <span id="topbar-date" class="topbar-date"></span>
+
+        <div class="topbar-popover-wrap">
+          <button id="notif-btn" class="icon-btn" type="button" aria-label="Notifications">
+            <span class="nav-icon" data-icon="bell"></span>
+            <span id="notif-badge" class="icon-badge hidden">0</span>
+          </button>
+          <div id="notif-panel" class="popover hidden">
+            <div class="popover-title">Today's activity</div>
+            <div id="notif-body" class="popover-body">No activity yet today.</div>
+          </div>
+        </div>
+
+        <div class="topbar-popover-wrap">
+          <button id="user-btn" class="icon-btn user-btn" type="button" aria-label="User menu">
+            <span id="user-avatar" class="user-avatar">U</span>
+            <span id="user-email-label" class="user-email-label">—</span>
+          </button>
+          <div id="user-panel" class="popover hidden">
+            <div class="popover-title" id="user-panel-name">—</div>
+            <div class="popover-sub" id="user-panel-role">entry</div>
+            <button id="signout-btn" class="popover-action" type="button">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- SCROLLABLE CONTENT -->
+    <main class="content">
+
+      <!-- ============ DASHBOARD VIEW ============ -->
+      <section id="view-dashboard" class="view">
+        <div class="view-toolbar">
+          <div class="segmented" id="dash-range-segmented">
+            <button class="segmented-btn active" data-range="today" type="button">Today</button>
+            <button class="segmented-btn" data-range="week" type="button">This week</button>
+            <button class="segmented-btn" data-range="month" type="button">This month</button>
+            <button class="segmented-btn" data-range="all" type="button">All time</button>
+          </div>
+          <button id="dash-refresh-btn" class="btn btn-ghost" type="button">
+            <span class="nav-icon" data-icon="refresh"></span> Refresh
+          </button>
+        </div>
+
+        <div class="kpi-grid" id="kpi-grid">
+          <!-- KPI cards injected by JS -->
+        </div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Production trend</h3>
+              <span class="panel-sub" id="trend-chart-sub">Last 14 days</span>
+            </div>
+            <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Machine-wise output</h3>
+              <span class="panel-sub" id="machine-chart-sub">Selected range</span>
+            </div>
+            <div class="chart-wrap"><canvas id="machine-chart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recent entries</h3>
+            <a href="#history" class="panel-link">View all →</a>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="recent-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Machine</th><th>Shift</th><th>Operator</th><th>Product</th><th>Size</th><th class="num">Production</th><th class="num">Rejection</th>
+                </tr>
+              </thead>
+              <tbody id="recent-table-body"></tbody>
+            </table>
+          </div>
+          <div id="recent-empty" class="empty-state hidden">
+            <p>No production logged yet.</p>
+            <a href="#entry" class="btn btn-primary btn-sm">Log first entry</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PRODUCTION ENTRY VIEW ============ -->
+      <section id="view-entry" class="view">
+        <div class="panel form-panel">
+          <div class="panel-head">
+            <h3>Log production</h3>
+            <span class="panel-sub">Saved straight to the cloud database</span>
+          </div>
+
+          <form id="entry-form" class="entry-form">
+            <div class="form-grid">
+              <div class="field">
+                <label class="field-label" for="entry-date">Date</label>
+                <input id="entry-date" class="text-input" type="date" required>
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-shift">Shift</label>
+                <select id="entry-shift" class="text-input" required>
+                  <option value="">Select shift</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-machine">Machine</label>
+                <select id="entry-machine" class="text-input" required></select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-operator">Operator</label>
+                <select id="entry-operator" class="text-input" required></select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-product">Product</label>
+                <select id="entry-product" class="text-input" required></select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-size">Size</label>
+                <select id="entry-size" class="text-input" required></select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-production">Production quantity</label>
+                <input id="entry-production" class="text-input" type="number" min="0" step="any" required placeholder="e.g. 34000">
+              </div>
+              <div class="field">
+                <label class="field-label" for="entry-rejection">Rejection quantity</label>
+                <input id="entry-rejection" class="text-input" type="number" min="0" step="any" value="0">
+              </div>
+              <div class="field field-span2">
+                <label class="field-label" for="entry-remarks">Remarks (optional)</label>
+                <input id="entry-remarks" class="text-input" type="text" placeholder="Any notes for this entry">
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="entry-save-btn" class="btn btn-primary">
+                <span class="btn-label">Save production</span>
+              </button>
+              <button type="button" id="entry-reset-btn" class="btn btn-ghost">Clear form</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============ HISTORY / SEARCH VIEW ============ -->
+      <section id="view-history" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Search production history</h3>
+          </div>
+          <div class="filter-bar">
+            <div class="field">
+              <label class="field-label">From</label>
+              <input id="filter-date-from" class="text-input" type="date">
+            </div>
+            <div class="field">
+              <label class="field-label">To</label>
+              <input id="filter-date-to" class="text-input" type="date">
+            </div>
+            <div class="field">
+              <label class="field-label">Machine</label>
+              <select id="filter-machine" class="text-input"><option value="">All machines</option></select>
+            </div>
+            <div class="field">
+              <label class="field-label">Shift</label>
+              <select id="filter-shift" class="text-input">
+                <option value="">All shifts</option>
+                <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">Operator</label>
+              <select id="filter-operator" class="text-input"><option value="">All operators</option></select>
+            </div>
+            <div class="field">
+              <label class="field-label">Product</label>
+              <select id="filter-product" class="text-input"><option value="">All products</option></select>
+            </div>
+            <div class="field">
+              <label class="field-label">Size</label>
+              <select id="filter-size" class="text-input"><option value="">All sizes</option></select>
+            </div>
+            <div class="field filter-actions">
+              <label class="field-label">&nbsp;</label>
+              <div class="filter-btn-row">
+                <button id="filter-apply-btn" class="btn btn-primary" type="button">Search</button>
+                <button id="filter-clear-btn" class="btn btn-ghost" type="button">Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Results</h3>
+            <span class="panel-sub" id="history-result-count">0 records</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="history-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Machine</th><th>Shift</th><th>Operator</th><th>Product</th><th>Size</th><th class="num">Production</th><th class="num">Rejection</th><th>Remarks</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body"></tbody>
+            </table>
+          </div>
+          <div id="history-empty" class="empty-state hidden">
+            <p>No records match this search.</p>
+          </div>
+          <div id="history-loading" class="loading-row hidden">Loading production data…</div>
+        </div>
+      </section>
+
+      <!-- ============ MACHINES VIEW ============ -->
+      <section id="view-machines" class="view">
+        <div id="machines-list-wrap" class="panel">
+          <div class="panel-head"><h3>Machines</h3></div>
+          <div class="machine-grid" id="machine-grid"></div>
+        </div>
+
+        <div id="machine-detail-wrap" class="panel hidden">
+          <div class="panel-head">
+            <button id="machine-back-btn" class="btn btn-ghost btn-sm" type="button">← All machines</button>
+          </div>
+          <h3 id="machine-detail-name" class="machine-detail-name">—</h3>
+          <div class="kpi-grid kpi-grid-3" id="machine-detail-kpis"></div>
+          <div class="table-scroll">
+            <table class="data-table" id="machine-history-table">
+              <thead>
+                <tr><th>Date</th><th>Shift</th><th>Operator</th><th>Product</th><th>Size</th><th class="num">Production</th><th class="num">Rejection</th></tr>
+              </thead>
+              <tbody id="machine-history-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ REPORTS VIEW ============ -->
+      <section id="view-reports" class="view">
+        <div class="panel no-print">
+          <div class="panel-head"><h3>Generate report</h3></div>
+          <div class="filter-bar">
+            <div class="field">
+              <label class="field-label">From</label>
+              <input id="report-date-from" class="text-input" type="date">
+            </div>
+            <div class="field">
+              <label class="field-label">To</label>
+              <input id="report-date-to" class="text-input" type="date">
+            </div>
+            <div class="field filter-actions">
+              <label class="field-label">&nbsp;</label>
+              <div class="filter-btn-row">
+                <button id="report-generate-btn" class="btn btn-primary" type="button">Generate report</button>
+                <button id="report-print-btn" class="btn btn-ghost" type="button">Print / Export</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="report-output" class="report-sheet">
+          <div class="report-header">
+            <img id="report-logo-img" class="report-logo-img hidden" alt="Company logo">
+            <div id="report-logo-fallback" class="report-logo-fallback">P8</div>
+            <div>
+              <div id="report-company-name" class="report-company-name">Your Company Name</div>
+              <div class="report-title">Factory Production Report</div>
+            </div>
+          </div>
+          <div class="report-meta" id="report-meta">Select a date range and generate a report.</div>
+
+          <div class="kpi-grid kpi-grid-3" id="report-kpis"></div>
+
+          <table class="data-table" id="report-table">
+            <thead>
+              <tr><th>Date</th><th>Machine</th><th>Shift</th><th>Operator</th><th>Product</th><th>Size</th><th class="num">Production</th><th class="num">Rejection</th></tr>
+            </thead>
+            <tbody id="report-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS VIEW ============ -->
+      <section id="view-settings" class="view">
+        <div class="settings-tabs no-print">
+          <button class="settings-tab active" data-tab="branding" type="button">Company profile</button>
+          <button class="settings-tab" data-tab="master" type="button">Master data</button>
+          <button class="settings-tab" data-tab="users" type="button">Users &amp; roles</button>
+        </div>
+
+        <div id="settings-branding" class="settings-panel">
+          <div class="panel">
+            <div class="panel-head"><h3>Company branding</h3></div>
+            <div class="branding-grid">
+              <div class="branding-logo-col">
+                <div class="field-label">Current logo</div>
+                <div class="logo-preview-box">
+                  <img id="settings-logo-preview-img" class="logo-preview-img hidden" alt="Company logo preview">
+                  <span id="settings-logo-preview-fallback" class="logo-preview-fallback">No logo yet</span>
+                </div>
+                <input id="logo-upload-input" type="file" accept=".png,.jpg,.jpeg,.webp" class="hidden">
+                <button id="logo-upload-btn" class="btn btn-secondary btn-sm" type="button">Upload new logo</button>
+                <p class="field-hint">PNG, JPG or WEBP. Transparent PNG recommended.</p>
+              </div>
+              <div class="branding-fields-col">
+                <div class="field">
+                  <label class="field-label" for="settings-company-name">Company name</label>
+                  <input id="settings-company-name" class="text-input" type="text">
+                </div>
+                <div class="field">
+                  <label class="field-label" for="settings-short-name">Company short name</label>
+                  <input id="settings-short-name" class="text-input" type="text">
+                </div>
+                <div class="field">
+                  <label class="field-label" for="settings-location">Factory location</label>
+                  <input id="settings-location" class="text-input" type="text">
+                </div>
+                <div class="field">
+                  <label class="field-label" for="settings-contact">Contact information (optional)</label>
+                  <input id="settings-contact" class="text-input" type="text">
+                </div>
+                <button id="settings-save-btn" class="btn btn-primary" type="button">Save company profile</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="settings-master" class="settings-panel hidden">
+          <div class="master-grid">
+            <div class="panel">
+              <div class="panel-head-row">
+                <h3>Machines</h3>
+                <button class="btn btn-secondary btn-sm" data-add="machine" type="button">+ Add machine</button>
+              </div>
+              <div class="master-list" id="master-list-machine"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head-row">
+                <h3>Operators</h3>
+                <button class="btn btn-secondary btn-sm" data-add="operator" type="button">+ Add operator</button>
+              </div>
+              <div class="master-list" id="master-list-operator"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head-row">
+                <h3>Products</h3>
+                <button class="btn btn-secondary btn-sm" data-add="product" type="button">+ Add product</button>
+              </div>
+              <div class="master-list" id="master-list-product"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head-row">
+                <h3>Sizes</h3>
+                <button class="btn btn-secondary btn-sm" data-add="size" type="button">+ Add size</button>
+              </div>
+              <div class="master-list" id="master-list-size"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="settings-users" class="settings-panel hidden">
+          <div class="panel">
+            <div class="panel-head"><h3>Users &amp; roles</h3></div>
+            <p class="field-hint">New user accounts are created by an administrator from the Supabase dashboard (Authentication → Users). Once someone signs in for the first time, they appear here automatically.</p>
+            <div class="table-scroll">
+              <table class="data-table" id="users-table">
+                <thead><tr><th>Name / email</th><th>Role</th><th>Joined</th></tr></thead>
+                <tbody id="users-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ================= GLOBAL: ADD-NEW MODAL (product / operator / size / machine) ================= -->
+<div id="add-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="add-modal-title">Add new</h3>
+      <button class="modal-close" id="add-modal-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label" id="add-modal-label" for="add-modal-name">Name</label>
+        <input id="add-modal-name" class="text-input" type="text" placeholder="Type a name">
+      </div>
+      <div id="add-modal-extra" class="field hidden">
+        <label class="field-label" id="add-modal-extra-label" for="add-modal-extra-input">Department</label>
+        <input id="add-modal-extra-input" class="text-input" type="text">
+      </div>
+      <div id="add-modal-error" class="form-error hidden"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="add-modal-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="add-modal-save" type="button"><span class="btn-label">Save</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= GLOBAL: EDIT PRODUCTION RECORD MODAL ================= -->
+<div id="edit-record-modal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h3>Edit production entry</h3>
+      <button class="modal-close" id="edit-record-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label class="field-label" for="edit-date">Date</label>
+          <input id="edit-date" class="text-input" type="date">
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-shift">Shift</label>
+          <select id="edit-shift" class="text-input">
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-machine">Machine</label>
+          <select id="edit-machine" class="text-input"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-operator">Operator</label>
+          <select id="edit-operator" class="text-input"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-product">Product</label>
+          <select id="edit-product" class="text-input"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-size">Size</label>
+          <select id="edit-size" class="text-input"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-production">Production quantity</label>
+          <input id="edit-production" class="text-input" type="number" min="0" step="any">
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-rejection">Rejection quantity</label>
+          <input id="edit-rejection" class="text-input" type="number" min="0" step="any">
+        </div>
+        <div class="field field-span2">
+          <label class="field-label" for="edit-remarks">Remarks</label>
+          <input id="edit-remarks" class="text-input" type="text">
+        </div>
+      </div>
+      <div id="edit-record-error" class="form-error hidden"></div>
+    </div>
+    <div class="modal-actions modal-actions-split">
+      <button class="btn btn-danger-ghost" id="edit-record-delete" type="button">Delete entry</button>
+      <div class="modal-actions-right">
+        <button class="btn btn-ghost" id="edit-record-cancel" type="button">Cancel</button>
+        <button class="btn btn-primary" id="edit-record-save" type="button"><span class="btn-label">Save changes</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= GLOBAL: CONFIRM DIALOG ================= -->
+<div id="confirm-modal" class="modal-overlay hidden">
+  <div class="modal modal-narrow">
+    <div class="modal-body">
+      <h3 id="confirm-title">Are you sure?</h3>
+      <p id="confirm-message">This action cannot be undone.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="confirm-cancel-btn" type="button">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= GLOBAL: TOASTS ================= -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- ================= GLOBAL: LOADING OVERLAY ================= -->
+<div id="loading-overlay" class="loading-overlay hidden">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <span id="loading-overlay-text">Loading…</span>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   PACK8 FACTORY PRODUCTION MANAGEMENT SYSTEM
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1. CONFIG — fill these in from Supabase Dashboard -> Settings -> API.
+   Only the public "anon" key ever goes here. Never the service_role key.
+   --------------------------------------------------------------------- */
+const SUPABASE_CONFIG = {
+  url: 'YOUR_SUPABASE_PROJECT_URL',
+  anonKey: 'YOUR_SUPABASE_ANON_KEY'
+};
+
+const CONFIG_IS_PLACEHOLDER =
+  SUPABASE_CONFIG.url === 'YOUR_SUPABASE_PROJECT_URL' ||
+  SUPABASE_CONFIG.anonKey === 'YOUR_SUPABASE_ANON_KEY' ||
+  !SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey;
+
+let sb = null;
+if (!CONFIG_IS_PLACEHOLDER) {
+  sb = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+}
+
+/* ---------------------------------------------------------------------
+   2. APP STATE
+   --------------------------------------------------------------------- */
+const state = {
+  session: null,
+  profile: null,
+  companySettings: null,
+  master: { machines: [], operators: [], products: [], sizes: [] },
+  currentView: 'dashboard',
+  charts: { trend: null, machine: null },
+  history: { lastResults: [] },
+  machineDetail: { activeId: null },
+  realtimeChannel: null,
+  todayActivityCount: 0,
+  pendingAdd: null,       // { type, targetSelectId }
+  pendingEditRecordId: null,
+  confirmResolver: null
+};
+
+const SHIFTS = ['A', 'B', 'C', 'D'];
+
+const MASTER_CONFIG = {
+  machine:  { table: 'machines',  nameField: 'machine_name',  label: 'Machine',  extraField: 'department', extraLabel: 'Department (optional)', cacheKey: 'machines',  selects: ['entry-machine', 'filter-machine', 'edit-machine'] },
+  operator: { table: 'operators', nameField: 'operator_name', label: 'Operator', extraField: 'department', extraLabel: 'Department (optional)', cacheKey: 'operators', selects: ['entry-operator', 'filter-operator', 'edit-operator'] },
+  product:  { table: 'products',  nameField: 'product_name',  label: 'Product',  extraField: null,         extraLabel: null,                    cacheKey: 'products',  selects: ['entry-product', 'filter-product', 'edit-product'] },
+  size:     { table: 'sizes',     nameField: 'size_name',     label: 'Size',     extraField: null,         extraLabel: null,                    cacheKey: 'sizes',     selects: ['entry-size', 'filter-size', 'edit-size'] }
+};
+
+const ADD_NEW_VALUE = '__add_new__';
+
+/* ---------------------------------------------------------------------
+   3. ICONS — small inline SVGs, no external icon-font dependency.
+   --------------------------------------------------------------------- */
+const ICONS = {
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
+  'plus-square': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
+  cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"></rect><rect x="10" y="10" width="4" height="4"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>',
+  'file-text': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>'
+};
+
+function renderIcons(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-icon]').forEach(function (el) {
+    const name = el.getAttribute('data-icon');
+    if (ICONS[name]) el.innerHTML = ICONS[name];
+  });
+}
+
+/* ---------------------------------------------------------------------
+   4. GENERIC UTILITY HELPERS
+   --------------------------------------------------------------------- */
+function qs(id) { return document.getElementById(id); }
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatNumber(n) {
+  const num = Number(n);
+  if (Number.isNaN(num)) return '0';
+  return num.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+function formatDateDMY(isoDate) {
+  if (!isoDate) return '—';
+  const parts = String(isoDate).split('-');
+  if (parts.length !== 3) return isoDate;
+  const [y, m, d] = parts;
+  return d + '-' + m + '-' + y;
+}
+
+function todayIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+function isoDateDaysAgo(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+function startOfMonthIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return y + '-' + m + '-01';
+}
+
+function rejectionPercent(production, rejection) {
+  const p = Number(production) || 0;
+  const r = Number(rejection) || 0;
+  const total = p + r;
+  if (total <= 0) return 0;
+  return (r / total) * 100;
+}
+
+function debounce(fn, wait) {
+  let t = null;
+  return function () {
+    const args = arguments;
+    clearTimeout(t);
+    t = setTimeout(function () { fn.apply(null, args); }, wait);
+  };
+}
+
+function enrichRecord(r) {
+  return {
+    id: r.id,
+    date: r.date,
+    shift: r.shift,
+    production_quantity: r.production_quantity,
+    rejection_quantity: r.rejection_quantity,
+    remarks: r.remarks,
+    machine_id: r.machine_id,
+    operator_id: r.operator_id,
+    product_id: r.product_id,
+    size_id: r.size_id,
+    machine_name: (r.machines && r.machines.machine_name) || '—',
+    operator_name: (r.operators && r.operators.operator_name) || '—',
+    product_name: (r.products && r.products.product_name) || '—',
+    size_name: (r.sizes && r.sizes.size_name) || '—'
+  };
+}
+
+const RECORD_SELECT_QUERY =
+  'id, date, shift, production_quantity, rejection_quantity, remarks, machine_id, operator_id, product_id, size_id, ' +
+  'machines ( machine_name ), operators ( operator_name ), products ( product_name ), sizes ( size_name )';
+
+/* ---------------------------------------------------------------------
+   5. UI HELPERS — toasts, loading overlay, modals, confirm dialog
+   --------------------------------------------------------------------- */
+function showToast(message, type) {
+  const container = qs('toast-container');
+  if (!container) return;
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(function () { el.classList.add('toast-in'); });
+  setTimeout(function () {
+    el.classList.remove('toast-in');
+    setTimeout(function () { el.remove(); }, 250);
+  }, 4200);
+}
+
+function showLoadingOverlay(text) {
+  const overlay = qs('loading-overlay');
+  const label = qs('loading-overlay-text');
+  if (label) label.textContent = text || 'Loading…';
+  if (overlay) overlay.classList.remove('hidden');
+}
+
+function hideLoadingOverlay() {
+  const overlay = qs('loading-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+function setButtonBusy(btn, busy, busyLabel) {
+  if (!btn) return;
+  const labelEl = btn.querySelector('.btn-label');
+  if (busy) {
+    btn.disabled = true;
+    btn.dataset.prevLabel = labelEl ? labelEl.textContent : btn.textContent;
+    if (labelEl) labelEl.textContent = busyLabel || 'Please wait…';
+  } else {
+    btn.disabled = false;
+    if (labelEl && btn.dataset.prevLabel) labelEl.textContent = btn.dataset.prevLabel;
+  }
+}
+
+function openModal(id) {
+  const el = qs(id);
+  if (el) el.classList.remove('hidden');
+}
+
+function closeModal(id) {
+  const el = qs(id);
+  if (el) el.classList.add('hidden');
+}
+
+function confirmDialog(title, message) {
+  qs('confirm-title').textContent = title || 'Are you sure?';
+  qs('confirm-message').textContent = message || 'This action cannot be undone.';
+  openModal('confirm-modal');
+  return new Promise(function (resolve) {
+    state.confirmResolver = resolve;
+  });
+}
+
+function togglePopover(panelId, show) {
+  const panel = qs(panelId);
+  if (!panel) return;
+  if (show === undefined) panel.classList.toggle('hidden');
+  else if (show) panel.classList.remove('hidden');
+  else panel.classList.add('hidden');
+}
+
+function closeAllPopovers() {
+  togglePopover('notif-panel', false);
+  togglePopover('user-panel', false);
+}
+
+/* ---------------------------------------------------------------------
+   6. AUTH
+   --------------------------------------------------------------------- */
+async function handleLoginSubmit(e) {
+  e.preventDefault();
+  const email = qs('login-email').value.trim();
+  const password = qs('login-password').value;
+  const errorBox = qs('login-error');
+  const btn = qs('login-submit-btn');
+  errorBox.classList.add('hidden');
+
+  if (!sb) {
+    errorBox.textContent = 'Supabase is not configured yet. Add your Project URL and anon key in the CONFIG section, then reload.';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  setButtonBusy(btn, true, 'Signing in…');
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      errorBox.textContent = error.message || 'Could not sign in. Check your email and password.';
+      errorBox.classList.remove('hidden');
+      return;
+    }
+    state.session = data.session;
+  } catch (err) {
+    errorBox.textContent = 'Unable to connect to the cloud database. Please check your internet connection.';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setButtonBusy(btn, false);
+  }
+}
+
+async function handleSignOut() {
+  closeAllPopovers();
+  if (!sb) return;
+  try {
+    await sb.auth.signOut();
+  } catch (err) {
+    /* even if the network call fails, fall through to local reset below */
+  }
+  if (state.realtimeChannel) {
+    sb.removeChannel(state.realtimeChannel);
+    state.realtimeChannel = null;
+  }
+  state.session = null;
+  state.profile = null;
+  showLoginView();
+}
+
+function showLoginView() {
+  qs('boot-screen').classList.add('hidden');
+  qs('app-shell').classList.add('hidden');
+  qs('login-view').classList.remove('hidden');
+}
+
+function showAppShell() {
+  qs('boot-screen').classList.add('hidden');
+  qs('login-view').classList.add('hidden');
+  qs('app-shell').classList.remove('hidden');
+}
+
+async function loadCurrentUserProfile() {
+  if (!sb || !state.session) return;
+  const userId = state.session.user.id;
+  try {
+    const { data, error } = await sb.from('user_profiles').select('*').eq('id', userId).maybeSingle();
+    if (!error && data) {
+      state.profile = data;
+    } else {
+      state.profile = { id: userId, full_name: state.session.user.email, role: 'entry' };
+    }
+  } catch (err) {
+    state.profile = { id: userId, full_name: state.session.user.email, role: 'entry' };
+  }
+  const email = state.session.user.email || '';
+  qs('user-email-label').textContent = email;
+  qs('user-avatar').textContent = (email || 'U').charAt(0).toUpperCase();
+  qs('user-panel-name').textContent = (state.profile && state.profile.full_name) || email;
+  qs('user-panel-role').textContent = 'Role: ' + ((state.profile && state.profile.role) || 'entry');
+}
+
+/* ---------------------------------------------------------------------
+   7. MASTER DATA — fetch, cache, populate dropdowns, "add new" flow
+   --------------------------------------------------------------------- */
+async function fetchMasterTable(table) {
+  const { data, error } = await sb.from(table).select('*').order(
+    table === 'machines' ? 'machine_name' :
+    table === 'operators' ? 'operator_name' :
+    table === 'products' ? 'product_name' : 'size_name'
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+async function loadAllMasterData() {
+  const [machines, operators, products, sizes] = await Promise.all([
+    fetchMasterTable('machines'),
+    fetchMasterTable('operators'),
+    fetchMasterTable('products'),
+    fetchMasterTable('sizes')
+  ]);
+  state.master.machines = machines;
+  state.master.operators = operators;
+  state.master.products = products;
+  state.master.sizes = sizes;
+  populateAllMasterSelects();
+}
+
+function activeOnly(list) {
+  return list.filter(function (row) { return row.status === 'active'; });
+}
+
+function nameFieldFor(cacheKey) {
+  if (cacheKey === 'machines') return 'machine_name';
+  if (cacheKey === 'operators') return 'operator_name';
+  if (cacheKey === 'products') return 'product_name';
+  return 'size_name';
+}
+
+function populateSelect(selectEl, items, nameField, opts) {
+  if (!selectEl) return;
+  const options = opts || {};
+  const previousValue = selectEl.value;
+  const isEntryField = options.appendAddNewLabel;
+  const blank = '<option value="">' + (options.blankLabel || ('Select ' + (options.label || ''))) + '</option>';
+  let html = options.includeBlank === false ? '' : blank;
+  items.forEach(function (row) {
+    const label = escapeHtml(row[nameField]) + (row.status === 'inactive' ? ' (inactive)' : '');
+    html += '<option value="' + row.id + '">' + label + '</option>';
+  });
+  if (isEntryField) {
+    html += '<option value="' + ADD_NEW_VALUE + '">+ ' + escapeHtml(options.appendAddNewLabel) + '</option>';
+  }
+  selectEl.innerHTML = html;
+  if (previousValue && selectEl.querySelector('option[value="' + CSS.escape(previousValue) + '"]')) {
+    selectEl.value = previousValue;
+  }
+}
+
+function populateAllMasterSelects() {
+  Object.keys(MASTER_CONFIG).forEach(function (type) {
+    const cfg = MASTER_CONFIG[type];
+    const nameField = cfg.nameField;
+    const all = state.master[cfg.cacheKey];
+    const active = activeOnly(all);
+
+    const entrySelect = qs('entry-' + type);
+    populateSelect(entrySelect, active, nameField, {
+      label: cfg.label,
+      appendAddNewLabel: 'Add New ' + cfg.label
+    });
+
+    const filterSelect = qs('filter-' + type);
+    populateSelect(filterSelect, all, nameField, {
+      blankLabel: 'All ' + cfg.label.toLowerCase() + 's'
+    });
+
+    const editSelect = qs('edit-' + type);
+    populateSelect(editSelect, all, nameField, { includeBlank: false });
+  });
+}
+
+function openAddModal(type, targetSelectId) {
+  const cfg = MASTER_CONFIG[type];
+  state.pendingAdd = { type: type, targetSelectId: targetSelectId };
+  qs('add-modal-title').textContent = 'Add new ' + cfg.label.toLowerCase();
+  qs('add-modal-label').textContent = cfg.label + ' name';
+  qs('add-modal-name').value = '';
+  qs('add-modal-name').placeholder = 'e.g. ' + (type === 'machine' ? 'PM 3000' : type === 'operator' ? 'Ramesh Yadav' : type === 'product' ? 'Courier Bag' : '12 x 15');
+  qs('add-modal-error').classList.add('hidden');
+  if (cfg.extraField) {
+    qs('add-modal-extra').classList.remove('hidden');
+    qs('add-modal-extra-label').textContent = cfg.extraLabel;
+    qs('add-modal-extra-input').value = '';
+  } else {
+    qs('add-modal-extra').classList.add('hidden');
+  }
+  openModal('add-modal');
+  setTimeout(function () { qs('add-modal-name').focus(); }, 50);
+}
+
+function closeAddModal() {
+  closeModal('add-modal');
+  state.pendingAdd = null;
+}
+
+async function saveAddModal() {
+  const pending = state.pendingAdd;
+  if (!pending) return;
+  const cfg = MASTER_CONFIG[pending.type];
+  const nameValue = qs('add-modal-name').value.trim();
+  const errorBox = qs('add-modal-error');
+  errorBox.classList.add('hidden');
+
+  if (!nameValue) {
+    errorBox.textContent = cfg.label + ' name is required.';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const existing = state.master[cfg.cacheKey].find(function (row) {
+    return row[cfg.nameField].trim().toLowerCase() === nameValue.toLowerCase();
+  });
+
+  const saveBtn = qs('add-modal-save');
+  setButtonBusy(saveBtn, true, 'Saving…');
+
+  try {
+    let newRow = existing;
+    if (!existing) {
+      const payload = {};
+      payload[cfg.nameField] = nameValue;
+      if (cfg.extraField) {
+        const extraValue = qs('add-modal-extra-input').value.trim();
+        if (extraValue) payload[cfg.extraField] = extraValue;
+      }
+      const { data, error } = await sb.from(cfg.table).insert([payload]).select().single();
+      if (error) throw error;
+      newRow = data;
+      state.master[cfg.cacheKey].push(newRow);
+      state.master[cfg.cacheKey].sort(function (a, b) {
+        return String(a[cfg.nameField]).localeCompare(String(b[cfg.nameField]));
+      });
+    } else if (existing.status === 'inactive') {
+      const { data, error } = await sb.from(cfg.table).update({ status: 'active' }).eq('id', existing.id).select().single();
+      if (error) throw error;
+      newRow = data;
+      const idx = state.master[cfg.cacheKey].findIndex(function (r) { return r.id === existing.id; });
+      if (idx > -1) state.master[cfg.cacheKey][idx] = newRow;
+    }
+
+    populateAllMasterSelects();
+    renderAllMasterLists();
+
+    if (pending.targetSelectId) {
+      const targetSelect = qs(pending.targetSelectId);
+      if (targetSelect) targetSelect.value = newRow.id;
+    }
+
+    closeAddModal();
+    showToast((existing ? cfg.label + ' selected.' : cfg.label + ' added successfully.'), 'success');
+  } catch (err) {
+    errorBox.textContent = (err && err.message) ? err.message : 'Could not save. Please try again.';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setButtonBusy(saveBtn, false);
+  }
+}
+
+function handleMasterSelectChange(e) {
+  const select = e.target;
+  const type = select.id.replace('entry-', '');
+  if (select.value === ADD_NEW_VALUE) {
+    select.value = '';
+    openAddModal(type, select.id);
+  }
+}
+
+async function toggleMasterStatus(type, id, newStatus) {
+  const cfg = MASTER_CONFIG[type];
+  try {
+    const { data, error } = await sb.from(cfg.table).update({ status: newStatus }).eq('id', id).select().single();
+    if (error) throw error;
+    const idx = state.master[cfg.cacheKey].findIndex(function (r) { return r.id === id; });
+    if (idx > -1) state.master[cfg.cacheKey][idx] = data;
+    populateAllMasterSelects();
+    renderAllMasterLists();
+    showToast(cfg.label + (newStatus === 'active' ? ' reactivated.' : ' deactivated.'), 'success');
+  } catch (err) {
+    showToast('Could not update ' + cfg.label.toLowerCase() + '. ' + ((err && err.message) || ''), 'error');
+  }
+}
+
+function renderAllMasterLists() {
+  Object.keys(MASTER_CONFIG).forEach(function (type) {
+    const cfg = MASTER_CONFIG[type];
+    const container = qs('master-list-' + type);
+    if (!container) return;
+    const rows = state.master[cfg.cacheKey];
+    if (!rows.length) {
+      container.innerHTML = '<div class="empty-state-inline">None added yet.</div>';
+      return;
+    }
+    container.innerHTML = rows.map(function (row) {
+      const isActive = row.status === 'active';
+      return (
+        '<div class="master-row">' +
+          '<div class="master-row-name">' + escapeHtml(row[cfg.nameField]) + '</div>' +
+          '<div class="status-badge ' + (isActive ? 'status-active' : 'status-inactive') + '">' + (isActive ? 'Active' : 'Inactive') + '</div>' +
+          '<button class="btn btn-ghost btn-xs" data-toggle-type="' + type + '" data-toggle-id="' + row.id + '" data-toggle-next="' + (isActive ? 'inactive' : 'active') + '">' +
+            (isActive ? 'Deactivate' : 'Reactivate') +
+          '</button>' +
+        '</div>'
+      );
+    }).join('');
+  });
+}
+
+/* ---------------------------------------------------------------------
+   8. COMPANY BRANDING
+   --------------------------------------------------------------------- */
+async function loadCompanySettings() {
+  const { data, error } = await sb.from('company_settings').select('*').eq('id', true).maybeSingle();
+  if (error) throw error;
+  state.companySettings = data || { company_name: 'Your Company Name', short_name: '', logo_url: null };
+  applyBrandingEverywhere();
+}
+
+function applyBrandingEverywhere() {
+  const s = state.companySettings || {};
+  const name = s.company_name || 'Your Company Name';
+  const initials = (s.short_name || name).trim().slice(0, 2).toUpperCase() || 'P8';
+  const logoUrl = s.logo_url || '';
+
+  document.title = name + ' — Factory Production Management System';
+
+  qs('login-company-name').textContent = name;
+  qs('sidebar-company-name').textContent = name;
+  qs('report-company-name').textContent = name;
+
+  [
+    { img: 'login-logo-img', fallback: 'login-logo-fallback' },
+    { img: 'sidebar-logo-img', fallback: 'sidebar-logo-fallback' },
+    { img: 'report-logo-img', fallback: 'report-logo-fallback' },
+    { img: 'settings-logo-preview-img', fallback: 'settings-logo-preview-fallback' }
+  ].forEach(function (pair) {
+    const imgEl = qs(pair.img);
+    const fallbackEl = qs(pair.fallback);
+    if (!imgEl || !fallbackEl) return;
+    if (logoUrl) {
+      imgEl.src = logoUrl;
+      imgEl.classList.remove('hidden');
+      fallbackEl.classList.add('hidden');
+    } else {
+      imgEl.classList.add('hidden');
+      fallbackEl.classList.remove('hidden');
+      fallbackEl.textContent = pair.fallback === 'settings-logo-preview-fallback' ? 'No logo yet' : initials;
+    }
+  });
+
+  qs('settings-company-name').value = s.company_name || '';
+  qs('settings-short-name').value = s.short_name || '';
+  qs('settings-location').value = s.factory_location || '';
+  qs('settings-contact').value = s.contact_info || '';
+}
+
+async function saveCompanySettings() {
+  const btn = qs('settings-save-btn');
+  setButtonBusy(btn, true, 'Saving…');
+  try {
+    const payload = {
+      company_name: qs('settings-company-name').value.trim() || 'Your Company Name',
+      short_name: qs('settings-short-name').value.trim(),
+      factory_location: qs('settings-location').value.trim(),
+      contact_info: qs('settings-contact').value.trim()
+    };
+    const { data, error } = await sb.from('company_settings').update(payload).eq('id', true).select().single();
+    if (error) throw error;
+    state.companySettings = data;
+    applyBrandingEverywhere();
+    showToast('Company profile saved successfully.', 'success');
+  } catch (err) {
+    showToast('Could not save company profile. ' + ((err && err.message) || 'Please try again.'), 'error');
+  } finally {
+    setButtonBusy(btn, false);
+  }
+}
+
+async function handleLogoFileChosen(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const allowed = ['image/png', 'image/jpeg', 'image/webp'];
+  if (allowed.indexOf(file.type) === -1) {
+    showToast('Please choose a PNG, JPG or WEBP image.', 'error');
+    return;
+  }
+  const btn = qs('logo-upload-btn');
+  setButtonBusy(btn, true, 'Uploading…');
+  try {
+    const ext = file.name.split('.').pop();
+    const path = 'logo-' + Date.now() + '.' + ext;
+    const { error: uploadError } = await sb.storage.from('company-assets').upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = sb.storage.from('company-assets').getPublicUrl(path);
+    const publicUrl = urlData.publicUrl;
+
+    const { data, error } = await sb.from('company_settings').update({ logo_url: publicUrl }).eq('id', true).select().single();
+    if (error) throw error;
+
+    state.companySettings = data;
+    applyBrandingEverywhere();
+    showToast('Logo updated everywhere.', 'success');
+  } catch (err) {
+    showToast('Logo upload failed. ' + ((err && err.message) || 'Please try again.'), 'error');
+  } finally {
+    setButtonBusy(btn, false);
+    e.target.value = '';
+  }
+}
+
+/* ---------------------------------------------------------------------
+   9. PRODUCTION ENTRY
+   --------------------------------------------------------------------- */
+function resetEntryForm() {
+  qs('entry-form').reset();
+  qs('entry-date').value = todayIso();
+  qs('entry-rejection').value = '0';
+}
+
+async function handleEntrySubmit(e) {
+  e.preventDefault();
+  const btn = qs('entry-save-btn');
+
+  const payload = {
+    date: qs('entry-date').value,
+    shift: qs('entry-shift').value,
+    machine_id: qs('entry-machine').value,
+    operator_id: qs('entry-operator').value,
+    product_id: qs('entry-product').value,
+    size_id: qs('entry-size').value,
+    production_quantity: Number(qs('entry-production').value),
+    rejection_quantity: Number(qs('entry-rejection').value || 0),
+    remarks: qs('entry-remarks').value.trim() || null
+  };
+
+  if (!payload.date || !payload.shift || !payload.machine_id || !payload.operator_id || !payload.product_id || !payload.size_id) {
+    showToast('Please fill in date, shift, machine, operator, product and size.', 'error');
+    return;
+  }
+  if (!(payload.production_quantity >= 0)) {
+    showToast('Please enter a valid production quantity.', 'error');
+    return;
+  }
+
+  if (state.session && state.session.user) payload.created_by = state.session.user.id;
+
+  setButtonBusy(btn, true, 'Saving…');
+  try {
+    const { data, error } = await sb.from('production_records').insert([payload]).select(RECORD_SELECT_QUERY).single();
+    if (error) throw error;
+
+    showToast('Production entry saved successfully.', 'success');
+    resetEntryForm();
+    state.todayActivityCount += 1;
+    updateNotifBadge();
+    if (state.currentView === 'dashboard') await refreshDashboard();
+  } catch (err) {
+    showToast('Production could not be saved. ' + ((err && err.message) || 'Please try again.'), 'error');
+  } finally {
+    setButtonBusy(btn, false);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   10. DASHBOARD — KPIs, charts, recent entries
+   --------------------------------------------------------------------- */
+let dashboardRange = 'today';
+
+function getRangeDates(range) {
+  if (range === 'today') return { from: todayIso(), to: todayIso() };
+  if (range === 'week') return { from: isoDateDaysAgo(6), to: todayIso() };
+  if (range === 'month') return { from: startOfMonthIso(), to: todayIso() };
+  return { from: null, to: null };
+}
+
+function renderKpiCards(containerId, kpis) {
+  const container = qs(containerId);
+  if (!container) return;
+  container.innerHTML = kpis.map(function (k) {
+    return (
+      '<div class="kpi-card' + (k.tone ? ' kpi-tone-' + k.tone : '') + '">' +
+        '<div class="kpi-label">' + escapeHtml(k.label) + '</div>' +
+        '<div class="kpi-value">' + escapeHtml(k.value) + '</div>' +
+        (k.sub ? '<div class="kpi-sub">' + escapeHtml(k.sub) + '</div>' : '') +
+      '</div>'
+    );
+  }).join('');
+}
+
+function computeTotals(records) {
+  let production = 0, rejection = 0;
+  records.forEach(function (r) {
+    production += Number(r.production_quantity) || 0;
+    rejection += Number(r.rejection_quantity) || 0;
+  });
+  return { production: production, rejection: rejection, entries: records.length };
+}
+
+async function fetchRecordsInRange(from, to) {
+  let q = sb.from('production_records').select(RECORD_SELECT_QUERY);
+  if (from) q = q.gte('date', from);
+  if (to) q = q.lte('date', to);
+  q = q.order('date', { ascending: false }).limit(5000);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []).map(enrichRecord);
+}
+
+async function refreshDashboard() {
+  const { from, to } = getRangeDates(dashboardRange);
+  try {
+    const records = await fetchRecordsInRange(from, to);
+    const totals = computeTotals(records);
+    const pct = rejectionPercent(totals.production, totals.rejection);
+
+    renderKpiCards('kpi-grid', [
+      { label: 'Total Production', value: formatNumber(totals.production) },
+      { label: 'Total Rejection', value: formatNumber(totals.rejection), tone: 'amber' },
+      { label: 'Rejection %', value: pct.toFixed(2) + '%', tone: pct > 5 ? 'amber' : 'good' },
+      { label: 'Entries Logged', value: formatNumber(totals.entries) }
+    ]);
+
+    renderMachineChart(records);
+    await renderRecentTable();
+    await renderTrendChart();
+  } catch (err) {
+    showToast('Unable to connect to cloud database. Please check your internet connection.', 'error');
+  }
+}
+
+async function renderTrendChart() {
+  try {
+    const from = isoDateDaysAgo(13);
+    const records = await fetchRecordsInRange(from, todayIso());
+    const byDate = {};
+    for (let i = 13; i >= 0; i--) {
+      byDate[isoDateDaysAgo(i)] = 0;
+    }
+    records.forEach(function (r) {
+      if (byDate[r.date] !== undefined) byDate[r.date] += Number(r.production_quantity) || 0;
+    });
+    const labels = Object.keys(byDate).map(formatDateDMY);
+    const values = Object.values(byDate);
+
+    const ctx = qs('trend-chart').getContext('2d');
+    if (state.charts.trend) state.charts.trend.destroy();
+    state.charts.trend = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Production',
+          data: values,
+          borderColor: '#b9824c',
+          backgroundColor: 'rgba(185,130,76,0.12)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: function (v) { return formatNumber(v); } } }
+        }
+      }
+    });
+  } catch (err) {
+    /* chart is a supplementary view; a failed fetch here should not block the rest of the dashboard */
+  }
+}
+
+function renderMachineChart(records) {
+  const byMachine = {};
+  records.forEach(function (r) {
+    byMachine[r.machine_name] = (byMachine[r.machine_name] || 0) + (Number(r.production_quantity) || 0);
+  });
+  const entries = Object.keys(byMachine).map(function (k) { return { name: k, value: byMachine[k] }; })
+    .sort(function (a, b) { return b.value - a.value; })
+    .slice(0, 10);
+
+  const ctx = qs('machine-chart').getContext('2d');
+  if (state.charts.machine) state.charts.machine.destroy();
+  state.charts.machine = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: entries.map(function (e) { return e.name; }),
+      datasets: [{
+        label: 'Production',
+        data: entries.map(function (e) { return e.value; }),
+        backgroundColor: '#123a42',
+        borderRadius: 4,
+        maxBarThickness: 34
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: function (v) { return formatNumber(v); } } }
+      }
+    }
+  });
+}
+
+async function renderRecentTable() {
+  try {
+    const { data, error } = await sb.from('production_records')
+      .select(RECORD_SELECT_QUERY)
+      .order('created_at', { ascending: false })
+      .limit(8);
+    if (error) throw error;
+    const records = (data || []).map(enrichRecord);
+    const tbody = qs('recent-table-body');
+    const empty = qs('recent-empty');
+    if (!records.length) {
+      tbody.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    tbody.innerHTML = records.map(function (r) { return recordRowHtml(r, false); }).join('');
+  } catch (err) {
+    showToast('Unable to load recent entries.', 'error');
+  }
+}
+
+function recordRowHtml(r, withActions) {
+  const shiftClass = 'shift-badge shift-' + r.shift;
+  let row =
+    '<tr' + (withActions ? ' data-record-id="' + r.id + '" class="row-clickable"' : '') + '>' +
+      '<td>' + formatDateDMY(r.date) + '</td>' +
+      '<td>' + escapeHtml(r.machine_name) + '</td>' +
+      '<td><span class="' + shiftClass + '">' + escapeHtml(r.shift) + '</span></td>' +
+      '<td>' + escapeHtml(r.operator_name) + '</td>' +
+      '<td>' + escapeHtml(r.product_name) + '</td>' +
+      '<td>' + escapeHtml(r.size_name) + '</td>' +
+      '<td class="num">' + formatNumber(r.production_quantity) + '</td>' +
+      '<td class="num num-amber">' + formatNumber(r.rejection_quantity) + '</td>';
+  if (withActions) {
+    row += '<td class="cell-remarks">' + escapeHtml(r.remarks || '') + '</td>' +
+      '<td><button class="btn btn-ghost btn-xs" data-edit-record="' + r.id + '">Edit</button></td>';
+  }
+  row += '</tr>';
+  return row;
+}
+
+function updateNotifBadge() {
+  const badge = qs('notif-badge');
+  if (state.todayActivityCount > 0) {
+    badge.textContent = String(state.todayActivityCount);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+  qs('notif-body').textContent = state.todayActivityCount > 0
+    ? state.todayActivityCount + ' production entr' + (state.todayActivityCount === 1 ? 'y' : 'ies') + ' logged today.'
+    : 'No activity yet today.';
+}
+
+/* ---------------------------------------------------------------------
+   11. HISTORY / SEARCH
+   --------------------------------------------------------------------- */
+async function runHistorySearch() {
+  const loading = qs('history-loading');
+  const empty = qs('history-empty');
+  const tbody = qs('history-table-body');
+  loading.classList.remove('hidden');
+  empty.classList.add('hidden');
+  tbody.innerHTML = '';
+
+  try {
+    let q = sb.from('production_records').select(RECORD_SELECT_QUERY);
+    const from = qs('filter-date-from').value;
+    const to = qs('filter-date-to').value;
+    const machineId = qs('filter-machine').value;
+    const shift = qs('filter-shift').value;
+    const operatorId = qs('filter-operator').value;
+    const productId = qs('filter-product').value;
+    const sizeId = qs('filter-size').value;
+
+    if (from) q = q.gte('date', from);
+    if (to) q = q.lte('date', to);
+    if (machineId) q = q.eq('machine_id', machineId);
+    if (shift) q = q.eq('shift', shift);
+    if (operatorId) q = q.eq('operator_id', operatorId);
+    if (productId) q = q.eq('product_id', productId);
+    if (sizeId) q = q.eq('size_id', sizeId);
+
+    q = q.order('date', { ascending: false }).limit(2000);
+    const { data, error } = await q;
+    if (error) throw error;
+
+    const records = (data || []).map(enrichRecord);
+    state.history.lastResults = records;
+    qs('history-result-count').textContent = formatNumber(records.length) + (records.length === 2000 ? '+' : '') + ' record' + (records.length === 1 ? '' : 's');
+
+    if (!records.length) {
+      empty.classList.remove('hidden');
+    } else {
+      tbody.innerHTML = records.map(function (r) { return recordRowHtml(r, true); }).join('');
+    }
+  } catch (err) {
+    showToast('Unable to connect to cloud database. Please check your internet connection.', 'error');
+  } finally {
+    loading.classList.add('hidden');
+  }
+}
+
+function clearHistoryFilters() {
+  qs('filter-date-from').value = '';
+  qs('filter-date-to').value = '';
+  qs('filter-machine').value = '';
+  qs('filter-shift').value = '';
+  qs('filter-operator').value = '';
+  qs('filter-product').value = '';
+  qs('filter-size').value = '';
+  runHistorySearch();
+}
+
+/* ---------------------------------------------------------------------
+   12. EDIT / DELETE A PRODUCTION RECORD
+   --------------------------------------------------------------------- */
+function findRecordById(id) {
+  return state.history.lastResults.find(function (r) { return r.id === id; }) ||
+    (state.machineDetail.records || []).find(function (r) { return r.id === id; });
+}
+
+function openEditRecordModal(id) {
+  const record = findRecordById(id);
+  if (!record) {
+    showToast('Could not find that record. Please search again.', 'error');
+    return;
+  }
+  state.pendingEditRecordId = id;
+  qs('edit-date').value = record.date;
+  qs('edit-shift').value = record.shift;
+  qs('edit-machine').value = record.machine_id;
+  qs('edit-operator').value = record.operator_id;
+  qs('edit-product').value = record.product_id;
+  qs('edit-size').value = record.size_id;
+  qs('edit-production').value = record.production_quantity;
+  qs('edit-rejection').value = record.rejection_quantity;
+  qs('edit-remarks').value = record.remarks || '';
+  qs('edit-record-error').classList.add('hidden');
+  openModal('edit-record-modal');
+}
+
+async function saveEditRecord() {
+  const id = state.pendingEditRecordId;
+  if (!id) return;
+  const errorBox = qs('edit-record-error');
+  errorBox.classList.add('hidden');
+
+  const payload = {
+    date: qs('edit-date').value,
+    shift: qs('edit-shift').value,
+    machine_id: qs('edit-machine').value,
+    operator_id: qs('edit-operator').value,
+    product_id: qs('edit-product').value,
+    size_id: qs('edit-size').value,
+    production_quantity: Number(qs('edit-production').value),
+    rejection_quantity: Number(qs('edit-rejection').value || 0),
+    remarks: qs('edit-remarks').value.trim() || null
+  };
+
+  const btn = qs('edit-record-save');
+  setButtonBusy(btn, true, 'Saving…');
+  try {
+    const { error } = await sb.from('production_records').update(payload).eq('id', id);
+    if (error) throw error;
+    closeModal('edit-record-modal');
+    showToast('Production entry updated.', 'success');
+    await refreshCurrentViewData();
+  } catch (err) {
+    errorBox.textContent = 'Changes could not be saved. ' + ((err && err.message) || 'Please try again.');
+    errorBox.classList.remove('hidden');
+  } finally {
+    setButtonBusy(btn, false);
+  }
+}
+
+async function deleteEditRecord() {
+  const id = state.pendingEditRecordId;
+  if (!id) return;
+  const ok = await confirmDialog('Delete this entry?', 'This production record will be permanently removed. This cannot be undone.');
+  if (!ok) return;
+  try {
+    const { error } = await sb.from('production_records').delete().eq('id', id);
+    if (error) throw error;
+    closeModal('edit-record-modal');
+    showToast('Production entry deleted.', 'success');
+    await refreshCurrentViewData();
+  } catch (err) {
+    showToast('Could not delete this entry. ' + ((err && err.message) || 'Please try again.'), 'error');
+  }
+}
+
+async function refreshCurrentViewData() {
+  if (state.currentView === 'dashboard') await refreshDashboard();
+  else if (state.currentView === 'history') await runHistorySearch();
+  else if (state.currentView === 'machines' && state.machineDetail.activeId) await openMachineDetail(state.machineDetail.activeId);
+}
+
+/* ---------------------------------------------------------------------
+   13. MACHINES — grid + per-machine history
+   --------------------------------------------------------------------- */
+function renderMachineGrid() {
+  const grid = qs('machine-grid');
+  const machines = state.master.machines;
+  if (!machines.length) {
+    grid.innerHTML = '<div class="empty-state-inline">No machines yet. Add one from Settings → Master data.</div>';
+    return;
+  }
+  grid.innerHTML = machines.map(function (m) {
+    return (
+      '<button type="button" class="machine-card" data-machine-id="' + m.id + '">' +
+        '<span class="machine-card-icon" data-icon="cpu"></span>' +
+        '<span class="machine-card-name">' + escapeHtml(m.machine_name) + '</span>' +
+        '<span class="status-badge ' + (m.status === 'active' ? 'status-active' : 'status-inactive') + '">' + (m.status === 'active' ? 'Active' : 'Inactive') + '</span>' +
+      '</button>'
+    );
+  }).join('');
+  renderIcons(grid);
+}
+
+async function openMachineDetail(machineId) {
+  state.machineDetail.activeId = machineId;
+  const machine = state.master.machines.find(function (m) { return m.id === machineId; });
+  qs('machines-list-wrap').classList.add('hidden');
+  qs('machine-detail-wrap').classList.remove('hidden');
+  qs('machine-detail-name').textContent = machine ? machine.machine_name : 'Machine';
+
+  try {
+    const { data, error } = await sb.from('production_records')
+      .select(RECORD_SELECT_QUERY)
+      .eq('machine_id', machineId)
+      .order('date', { ascending: false })
+      .limit(3000);
+    if (error) throw error;
+    const records = (data || []).map(enrichRecord);
+    state.machineDetail.records = records;
+    const totals = computeTotals(records);
+    const pct = rejectionPercent(totals.production, totals.rejection);
+
+    renderKpiCards('machine-detail-kpis', [
+      { label: 'Total Production', value: formatNumber(totals.production) },
+      { label: 'Total Rejection', value: formatNumber(totals.rejection), tone: 'amber' },
+      { label: 'Rejection %', value: pct.toFixed(2) + '%', tone: pct > 5 ? 'amber' : 'good' }
+    ]);
+
+    const tbody = qs('machine-history-body');
+    tbody.innerHTML = records.length
+      ? records.map(function (r) {
+          return (
+            '<tr><td>' + formatDateDMY(r.date) + '</td>' +
+            '<td><span class="shift-badge shift-' + r.shift + '">' + escapeHtml(r.shift) + '</span></td>' +
+            '<td>' + escapeHtml(r.operator_name) + '</td>' +
+            '<td>' + escapeHtml(r.product_name) + '</td>' +
+            '<td>' + escapeHtml(r.size_name) + '</td>' +
+            '<td class="num">' + formatNumber(r.production_quantity) + '</td>' +
+            '<td class="num num-amber">' + formatNumber(r.rejection_quantity) + '</td></tr>'
+          );
+        }).join('')
+      : '<tr><td colspan="7" class="empty-cell">No production recorded for this machine yet.</td></tr>';
+  } catch (err) {
+    showToast('Unable to load machine history.', 'error');
+  }
+}
+
+function closeMachineDetail() {
+  state.machineDetail.activeId = null;
+  qs('machine-detail-wrap').classList.add('hidden');
+  qs('machines-list-wrap').classList.remove('hidden');
+}
+
+/* ---------------------------------------------------------------------
+   14. REPORTS — branded, printable date-range report
+   --------------------------------------------------------------------- */
+async function generateReport() {
+  const from = qs('report-date-from').value;
+  const to = qs('report-date-to').value;
+  if (!from || !to) {
+    showToast('Please choose both a start and end date.', 'error');
+    return;
+  }
+  const btn = qs('report-generate-btn');
+  setButtonBusy(btn, true, 'Generating…');
+  try {
+    const records = await fetchRecordsInRange(from, to);
+    const totals = computeTotals(records);
+    const pct = rejectionPercent(totals.production, totals.rejection);
+
+    qs('report-meta').textContent = 'Date range: ' + formatDateDMY(from) + ' to ' + formatDateDMY(to) + '   •   Generated ' + formatDateDMY(todayIso());
+
+    renderKpiCards('report-kpis', [
+      { label: 'Total Production', value: formatNumber(totals.production) },
+      { label: 'Total Rejection', value: formatNumber(totals.rejection), tone: 'amber' },
+      { label: 'Rejection %', value: pct.toFixed(2) + '%', tone: pct > 5 ? 'amber' : 'good' }
+    ]);
+
+    const sorted = records.slice().sort(function (a, b) { return a.date.localeCompare(b.date); });
+    const tbody = qs('report-table-body');
+    tbody.innerHTML = sorted.length
+      ? sorted.map(function (r) {
+          return (
+            '<tr><td>' + formatDateDMY(r.date) + '</td>' +
+            '<td>' + escapeHtml(r.machine_name) + '</td>' +
+            '<td><span class="shift-badge shift-' + r.shift + '">' + escapeHtml(r.shift) + '</span></td>' +
+            '<td>' + escapeHtml(r.operator_name) + '</td>' +
+            '<td>' + escapeHtml(r.product_name) + '</td>' +
+            '<td>' + escapeHtml(r.size_name) + '</td>' +
+            '<td class="num">' + formatNumber(r.production_quantity) + '</td>' +
+            '<td class="num num-amber">' + formatNumber(r.rejection_quantity) + '</td></tr>'
+          );
+        }).join('')
+      : '<tr><td colspan="8" class="empty-cell">No production records in this range.</td></tr>';
+  } catch (err) {
+    showToast('Unable to connect to cloud database. Please check your internet connection.', 'error');
+  } finally {
+    setButtonBusy(btn, false);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   15. SETTINGS — users & roles tab
+   --------------------------------------------------------------------- */
+async function loadUsersTab() {
+  const tbody = qs('users-table-body');
+  try {
+    const { data, error } = await sb.from('user_profiles').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    tbody.innerHTML = (data || []).length
+      ? data.map(function (u) {
+          return (
+            '<tr><td>' + escapeHtml(u.full_name || '—') + '</td>' +
+            '<td><span class="status-badge status-active">' + escapeHtml(u.role) + '</span></td>' +
+            '<td>' + formatDateDMY((u.created_at || '').slice(0, 10)) + '</td></tr>'
+          );
+        }).join('')
+      : '<tr><td colspan="3" class="empty-cell">No users have signed in yet.</td></tr>';
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-cell">Unable to load users right now.</td></tr>';
+  }
+}
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll('.settings-tab').forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  ['branding', 'master', 'users'].forEach(function (t) {
+    qs('settings-' + t).classList.toggle('hidden', t !== tab);
+  });
+  if (tab === 'users') loadUsersTab();
+}
+
+/* ---------------------------------------------------------------------
+   16. REALTIME
+   --------------------------------------------------------------------- */
+function startRealtimeSubscription() {
+  if (!sb || state.realtimeChannel) return;
+  state.realtimeChannel = sb
+    .channel('production_records_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'production_records' }, function (payload) {
+      handleRealtimeChange(payload);
+    })
+    .subscribe(function (status) { updateRealtimeIndicator(status); });
+}
+
+function updateRealtimeIndicator(status) {
+  const dot = qs('realtime-dot');
+  const label = qs('realtime-label');
+  if (!dot || !label) return;
+  if (status === 'SUBSCRIBED') {
+    dot.classList.remove('realtime-dot-off');
+    label.textContent = 'Live';
+  } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+    dot.classList.add('realtime-dot-off');
+    label.textContent = 'Offline';
+  }
+}
+
+function handleRealtimeChange(payload) {
+  if (payload.eventType === 'INSERT' && payload.new && payload.new.date === todayIso()) {
+    state.todayActivityCount += 1;
+    updateNotifBadge();
+  }
+  refreshCurrentViewData();
+}
+
+/* ---------------------------------------------------------------------
+   17. ROUTER
+   --------------------------------------------------------------------- */
+const VIEW_TITLES = {
+  dashboard: 'Dashboard',
+  entry: 'Production Entry',
+  history: 'History & Search',
+  machines: 'Machines',
+  reports: 'Reports',
+  settings: 'Settings'
+};
+
+function navigateToView(view) {
+  if (!VIEW_TITLES[view]) view = 'dashboard';
+  state.currentView = view;
+  document.querySelectorAll('.view').forEach(function (el) { el.classList.remove('view-active'); });
+  const target = qs('view-' + view);
+  if (target) target.classList.add('view-active');
+  document.querySelectorAll('.nav-item').forEach(function (el) {
+    el.classList.toggle('active', el.dataset.view === view);
+  });
+  qs('page-title').textContent = VIEW_TITLES[view];
+  toggleMobileSidebar(false);
+  loadViewData(view);
+}
+
+function loadViewData(view) {
+  if (view === 'dashboard') refreshDashboard();
+  else if (view === 'entry') { if (!qs('entry-date').value) resetEntryForm(); }
+  else if (view === 'history') runHistorySearch();
+  else if (view === 'machines') { closeMachineDetail(); renderMachineGrid(); }
+  else if (view === 'settings') renderAllMasterLists();
+}
+
+function handleHashChange() {
+  const view = (window.location.hash || '#dashboard').replace('#', '');
+  navigateToView(view);
+}
+
+function toggleMobileSidebar(show) {
+  const sidebar = document.querySelector('.sidebar');
+  if (!sidebar) return;
+  if (show === undefined) sidebar.classList.toggle('sidebar-mobile-open');
+  else sidebar.classList.toggle('sidebar-mobile-open', show);
+}
+
+/* ---------------------------------------------------------------------
+   18. APP BOOTSTRAP
+   --------------------------------------------------------------------- */
+let appInitialized = false;
+
+async function initAppAfterAuth() {
+  if (appInitialized) return;
+  appInitialized = true;
+  showAppShell();
+  showLoadingOverlay('Loading production data…');
+  try {
+    await loadCurrentUserProfile();
+    await loadCompanySettings();
+    await loadAllMasterData();
+    renderAllMasterLists();
+    resetEntryForm();
+    if (!qs('report-date-from').value) {
+      qs('report-date-from').value = startOfMonthIso();
+      qs('report-date-to').value = todayIso();
+    }
+    startRealtimeSubscription();
+    handleHashChange();
+  } catch (err) {
+    showToast('Unable to connect to cloud database. Please check your internet connection.', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+function resetAppState() {
+  appInitialized = false;
+  state.session = null;
+  state.profile = null;
+  state.todayActivityCount = 0;
+  if (sb && state.realtimeChannel) {
+    sb.removeChannel(state.realtimeChannel);
+    state.realtimeChannel = null;
+  }
+}
+
+function wireEventListeners() {
+  qs('login-form').addEventListener('submit', handleLoginSubmit);
+  qs('signout-btn').addEventListener('click', handleSignOut);
+
+  qs('notif-btn').addEventListener('click', function (e) {
+    e.stopPropagation();
+    togglePopover('user-panel', false);
+    togglePopover('notif-panel');
+  });
+  qs('user-btn').addEventListener('click', function (e) {
+    e.stopPropagation();
+    togglePopover('notif-panel', false);
+    togglePopover('user-panel');
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.topbar-popover-wrap')) closeAllPopovers();
+  });
+
+  qs('mobile-nav-toggle').addEventListener('click', function () { toggleMobileSidebar(); });
+  window.addEventListener('hashchange', handleHashChange);
+
+  document.querySelectorAll('#dash-range-segmented .segmented-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      dashboardRange = btn.dataset.range;
+      document.querySelectorAll('#dash-range-segmented .segmented-btn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      refreshDashboard();
+    });
+  });
+  qs('dash-refresh-btn').addEventListener('click', refreshDashboard);
+
+  qs('entry-form').addEventListener('submit', handleEntrySubmit);
+  qs('entry-reset-btn').addEventListener('click', resetEntryForm);
+  ['entry-machine', 'entry-operator', 'entry-product', 'entry-size'].forEach(function (id) {
+    qs(id).addEventListener('change', handleMasterSelectChange);
+  });
+
+  qs('filter-apply-btn').addEventListener('click', runHistorySearch);
+  qs('filter-clear-btn').addEventListener('click', clearHistoryFilters);
+  qs('history-table-body').addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-edit-record]');
+    if (btn) openEditRecordModal(btn.getAttribute('data-edit-record'));
+  });
+
+  qs('machine-grid').addEventListener('click', function (e) {
+    const card = e.target.closest('[data-machine-id]');
+    if (card) openMachineDetail(card.getAttribute('data-machine-id'));
+  });
+  qs('machine-back-btn').addEventListener('click', closeMachineDetail);
+
+  qs('report-generate-btn').addEventListener('click', generateReport);
+  qs('report-print-btn').addEventListener('click', function () { window.print(); });
+
+  document.querySelectorAll('.settings-tab').forEach(function (btn) {
+    btn.addEventListener('click', function () { switchSettingsTab(btn.dataset.tab); });
+  });
+  qs('logo-upload-btn').addEventListener('click', function () { qs('logo-upload-input').click(); });
+  qs('logo-upload-input').addEventListener('change', handleLogoFileChosen);
+  qs('settings-save-btn').addEventListener('click', saveCompanySettings);
+
+  document.querySelectorAll('[data-add]').forEach(function (btn) {
+    btn.addEventListener('click', function () { openAddModal(btn.getAttribute('data-add'), null); });
+  });
+  document.querySelectorAll('.master-list').forEach(function (list) {
+    list.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-toggle-type]');
+      if (!btn) return;
+      toggleMasterStatus(btn.getAttribute('data-toggle-type'), btn.getAttribute('data-toggle-id'), btn.getAttribute('data-toggle-next'));
+    });
+  });
+
+  qs('add-modal-close').addEventListener('click', closeAddModal);
+  qs('add-modal-cancel').addEventListener('click', closeAddModal);
+  qs('add-modal-save').addEventListener('click', saveAddModal);
+  qs('add-modal-name').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveAddModal(); } });
+
+  qs('edit-record-close').addEventListener('click', function () { closeModal('edit-record-modal'); });
+  qs('edit-record-cancel').addEventListener('click', function () { closeModal('edit-record-modal'); });
+  qs('edit-record-save').addEventListener('click', saveEditRecord);
+  qs('edit-record-delete').addEventListener('click', deleteEditRecord);
+
+  qs('confirm-cancel-btn').addEventListener('click', function () {
+    closeModal('confirm-modal');
+    if (state.confirmResolver) state.confirmResolver(false);
+  });
+  qs('confirm-ok-btn').addEventListener('click', function () {
+    closeModal('confirm-modal');
+    if (state.confirmResolver) state.confirmResolver(true);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      closeAllPopovers();
+      ['add-modal', 'edit-record-modal', 'confirm-modal'].forEach(function (id) { closeModal(id); });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  renderIcons(document);
+  qs('topbar-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  wireEventListeners();
+
+  if (CONFIG_IS_PLACEHOLDER) {
+    qs('boot-screen').innerHTML =
+      '<div class="boot-mark">P8</div>' +
+      '<p>This app is not connected to a database yet.</p>' +
+      '<p class="boot-hint">Open index.html, fill in SUPABASE_CONFIG with your Project URL and anon key, then reload this page. See SETUP_GUIDE.md for the exact steps.</p>';
+    return;
+  }
+
+  sb.auth.onAuthStateChange(function (event, session) {
+    if (event === 'SIGNED_OUT') {
+      resetAppState();
+      showLoginView();
+      return;
+    }
+    if (session) {
+      state.session = session;
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        initAppAfterAuth();
+      }
+    } else if (event === 'INITIAL_SESSION') {
+      showLoginView();
+    }
+  });
+});
+
+</script>
+</body>
+</html>
